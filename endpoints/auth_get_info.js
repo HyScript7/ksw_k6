@@ -33,3 +33,10 @@ export default function (data) {
   check(res, { "status is 200": (res) => res.status === 200 });
   sleep(1);
 }
+
+export function handleSummary(data) {
+  return {
+    stdout: textSummary(data, { indent: " ", enableColors: true }),
+    "../report/summary.html": htmlReport(data),
+  };
+}
