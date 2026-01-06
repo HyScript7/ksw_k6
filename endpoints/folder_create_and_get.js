@@ -1,18 +1,22 @@
 import url from "../utils/urls.js";
 import signIn from "../utils/session.js";
+import getRootFolder from "../utils/folder.js";
 
 import http from "k6/http";
 import { sleep, check, fail } from "k6";
 
 import { htmlReport } from "https://raw.githubusercontent.com/benc-uk/k6-reporter/main/dist/bundle.js";
 import { textSummary } from "https://jslib.k6.io/k6-summary/0.0.1/index.js";
+import { randomString } from "https://jslib.k6.io/k6-utils/1.2.0/index.js";
 
 export function setup() {
   let data = {};
   try {
     data.token = signIn();
+    data.root = getRootFolder();
   } catch (e) {
     data.token = null;
+    data.root = null;
   }
   return data;
 }
@@ -24,16 +28,34 @@ export const options = {
 
 export default function (data) {
   var token = data.token;
+  var root = data.root;
   if (token === null) {
     fail("Could not fetch token");
   }
-  let res = http.get(url("/auth/info"), {
+  if (root === null) {
+    fail("Could not fetch root folder ID");
+  }
+  let res = http.post(
+    url("/folders/" + root + "/create"),
+    JSON.stringify({
+      name: randomString(64),
+    }),
+    {
+      headers: {
+        Authorization: "Bearer " + token,
+        "Content-Type": "application/json",
+      },
+    },
+  );
+  check(res, { "creation succeeds": (res) => res.status === 200 });
+  let body = JSON.parse(res.body);
+  let res2 = http.get(url("/folders/" + body.id), {
     headers: {
       Authorization: "Bearer " + token,
       "Content-Type": "application/json",
     },
   });
-  check(res, { "status is 200": (res) => res.status === 200 });
+  check(res2, { "folders can be querried": (res) => res.status === 200 });
   sleep(1);
 }
 
